@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Litter Ledger</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap');
+
+:root{
+  --bg: #EDEAE3;
+  --paper: #F7F5F0;
+  --ink: #1B2430;
+  --ink-soft: #5B5F63;
+  --moss: #2C4A3E;
+  --moss-dark: #1F3831;
+  --vest: #FF6B1A;
+  --vest-dark: #E0570D;
+  --ticket: #F4D35E;
+  --line: #CFC8B8;
+  --stamp: #C1432E;
+  --ok: #3E7A52;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  font-family:'Inter',sans-serif;
+  color:var(--ink);
+  display:flex;
+  justify-content:center;
+  min-height:100vh;
+}
+.app{
+  width:100%;
+  max-width:440px;
+  min-height:100vh;
+  background:var(--paper);
+  display:flex;
+  flex-direction:column;
+  position:relative;
+  box-shadow:0 0 40px rgba(0,0,0,0.08);
+}
+
+/* Header */
+.header{
+  background:var(--moss);
+  color:var(--paper);
+  padding:18px 20px 14px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.brand{
+  font-family:'Space Grotesk',sans-serif;
+  font-weight:700;
+  font-size:20px;
+  letter-spacing:0.3px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.brand .mark{
+  width:26px;height:26px;
+  border:2px solid var(--vest);
+  border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;
+  transform:rotate(-4deg);
+}
+.header .points-chip{
+  font-family:'JetBrains Mono',monospace;
+  font-weight:700;
+  font-size:13px;
+  background:rgba(255,255,255,0.12);
+  padding:6px 10px;
+  border-radius:20px;
+  border:1px solid rgba(255,255,255,0.18);
+}
+
+/* Screens */
+.screen{ flex:1; padding:20px 20px 90px; display:none; }
+.screen.active{ display:block; }
+
+h1.title{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:22px;
+  margin:0 0 4px;
+}
+p.subtitle{
+  color:var(--ink-soft);
+  font-size:13.5px;
+  margin:0 0 20px;
+  line-height:1.5;
+}
+
+/* Capture screen */
+.capture-box{
+  border:2px dashed var(--line);
+  border-radius:16px;
+  background:#fff;
+  min-height:260px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  gap:12px;
+  overflow:hidden;
+  position:relative;
+}
+.capture-box img{ width:100%; height:260px; object-fit:cover; display:block; }
+.capture-cta{
+  display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--ink-soft);
+}
+.capture-cta .icon-circle{
+  width:56px;height:56px;border-radius:50%;
+  background:var(--moss);color:var(--paper);
+  display:flex;align-items:center;justify-content:center;font-size:24px;
+}
+input[type=file]{ display:none; }
+label.file-label{ cursor:pointer; width:100%; height:100%; display:block; }
+
+.retake-btn{
+  position:absolute;top:10px;right:10px;
+  background:rgba(27,36,48,0.75);color:#fff;
+  border:none;border-radius:20px;padding:6px 12px;
+  font-size:12px;font-family:'Inter';cursor:pointer;
+}
+
+.field-block{ margin-top:20px; }
+.field-label{
+  font-family:'Space Grotesk',sans-serif;
+  font-weight:700;
+  font-size:13px;
+  text-transform:uppercase;
+  letter-spacing:0.6px;
+  color:var(--moss);
+  margin-bottom:8px;
+  display:block;
+}
+.chip-row{ display:flex; flex-wrap:wrap; gap:8px; }
+.chip{
+  padding:9px 14px;
+  border-radius:20px;
+  border:1.5px solid var(--line);
+  background:#fff;
+  font-size:13.5px;
+  font-weight:500;
+  cursor:pointer;
+  color:var(--ink);
+  display:flex; gap:6px; align-items:center;
+}
+.chip .pts{ font-family:'JetBrains Mono'; color:var(--ink-soft); font-size:11.5px; }
+.chip.selected{ background:var(--moss); color:#fff; border-color:var(--moss); }
+.chip.selected .pts{ color:#cfe3d8; }
+
+.spot-input{
+  width:100%;
+  padding:11px 14px;
+  border-radius:10px;
+  border:1.5px solid var(--line);
+  font-family:'Inter';
+  font-size:14px;
+  background:#fff;
+}
+.spot-input:focus{ outline:2px solid var(--vest); outline-offset:1px; }
+
+.toggle-row{
+  display:flex; align-items:center; justify-content:space-between;
+  background:#fff; border:1.5px solid var(--line); border-radius:12px;
+  padding:13px 14px; margin-top:20px;
+}
+.toggle-copy .t1{ font-weight:600; font-size:14px; }
+.toggle-copy .t2{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
+.switch{
+  width:46px;height:26px;border-radius:20px;background:var(--line);
+  position:relative; cursor:pointer; flex-shrink:0; margin-left:12px;
+  transition:background .15s;
+}
+.switch .knob{
+  width:20px;height:20px;border-radius:50%;background:#fff;
+  position:absolute;top:3px;left:3px;transition:left .15s;
+  box-shadow:0 1px 3px rgba(0,0,0,0.3);
+}
+.switch.on{ background:var(--ok); }
+.switch.on .knob{ left:23px; }
+
+.submit-btn{
+  width:100%;
+  margin-top:22px;
+  background:var(--vest);
+  color:#fff;
+  border:none;
+  padding:15px;
+  border-radius:12px;
+  font-family:'Space Grotesk',sans-serif;
+  font-weight:700;
+  font-size:15px;
+  cursor:pointer;
+  letter-spacing:0.3px;
+}
+.submit-btn:disabled{ background:#d8d2c3; color:#98917f; cursor:not-allowed; }
+.submit-btn:active:not(:disabled){ background:var(--vest-dark); }
+
+/* Feed */
+.feed-item{
+  display:flex; gap:12px; padding:12px 0; border-bottom:1px solid var(--line);
+}
+.feed-item img{ width:64px;height:64px;border-radius:10px;object-fit:cover;flex-shrink:0; background:#ddd;}
+.feed-meta{ flex:1; min-width:0; }
+.feed-meta .who{ font-weight:600; font-size:13.5px; }
+.feed-meta .what{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+.feed-meta .spot{ font-size:11.5px; color:var(--ink-soft); font-style:italic; }
+.feed-pts{
+  font-family:'JetBrains Mono'; font-weight:700; font-size:14px; color:var(--vest-dark);
+  white-space:nowrap; text-align:right; min-width:52px;
+}
+.feed-pts .bonus-tag{
+  display:block; font-size:9.5px; background:var(--ticket); color:#6b5200;
+  border-radius:6px; padding:1px 5px; margin-top:3px; font-family:'Inter'; font-weight:700;
+}
+
+/* Leaderboard */
+.rank-row{
+  display:flex; align-items:center; gap:12px; padding:12px 10px; border-radius:12px;
+}
+.rank-row.me{ background:#EEF4EF; border:1.5px solid var(--ok); }
+.rank-num{
+  font-family:'Space Grotesk'; font-weight:700; font-size:15px;
+  width:26px; text-align:center; color:var(--ink-soft);
+}
+.rank-row:nth-child(1) .rank-num{ color:#B8860B; }
+.rank-row:nth-child(2) .rank-num{ color:#7A7A7A; }
+.rank-row:nth-child(3) .rank-num{ color:#A05A2C; }
+.rank-name{ flex:1; font-weight:600; font-size:14.5px; }
+.rank-sub{ font-size:11.5px; color:var(--ink-soft); }
+.rank-pts{ font-family:'JetBrains Mono'; font-weight:700; font-size:14.5px; }
+
+/* Me screen */
+.stat-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:22px; }
+.stat-card{
+  background:var(--moss); color:#fff; border-radius:14px; padding:16px;
+}
+.stat-card .num{ font-family:'JetBrains Mono'; font-weight:700; font-size:24px; }
+.stat-card .lab{ font-size:11.5px; opacity:0.8; margin-top:2px; text-transform:uppercase; letter-spacing:0.4px; }
+.badge-row{ display:flex; flex-direction:column; gap:10px; }
+.badge{
+  display:flex; align-items:center; gap:12px; padding:12px; border-radius:12px;
+  border:1.5px solid var(--line); background:#fff;
+}
+.badge.locked{ opacity:0.4; }
+.badge .b-icon{ font-size:22px; }
+.badge .b-name{ font-weight:700; font-size:13.5px; }
+.badge .b-req{ font-size:11.5px; color:var(--ink-soft); }
+.reset-link{
+  margin-top:24px; text-align:center; font-size:12px; color:var(--ink-soft);
+  text-decoration:underline; cursor:pointer;
+}
+
+/* Bottom nav */
+.nav{
+  position:absolute; bottom:0; left:0; right:0; height:66px;
+  background:#fff; border-top:1px solid var(--line);
+  display:flex; max-width:440px;
+}
+.app{ }
+.nav-btn{
+  flex:1; border:none; background:none; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:3px; color:var(--ink-soft);
+  font-size:10.5px; font-family:'Inter'; font-weight:600; cursor:pointer;
+}
+.nav-btn .ic{ font-size:19px; }
+.nav-btn.active{ color:var(--moss); }
+
+/* Onboarding modal */
+.overlay{
+  position:absolute; inset:0; background:rgba(27,36,48,0.55);
+  display:flex; align-items:flex-end; justify-content:center; z-index:50;
+}
+.sheet{
+  background:var(--paper); width:100%; max-width:440px; border-radius:20px 20px 0 0;
+  padding:26px 22px 30px; text-align:center;
+}
+.sheet .mark-big{
+  width:52px;height:52px;border:2.5px solid var(--vest); border-radius:12px; margin:0 auto 14px;
+  display:flex; align-items:center; justify-content:center; font-size:26px; transform:rotate(-4deg);
+  background:var(--moss);
+}
+.sheet h2{ font-family:'Space Grotesk'; margin:0 0 6px; font-size:20px; }
+.sheet p{ color:var(--ink-soft); font-size:13.5px; margin:0 0 18px; line-height:1.5;}
+.name-input{
+  width:100%; padding:13px 14px; border-radius:10px; border:1.5px solid var(--line);
+  font-size:15px; font-family:'Inter'; margin-bottom:12px; text-align:center;
+}
+
+/* Ticket modal (signature element) */
+.ticket-wrap{
+  position:absolute; inset:0; background:rgba(27,36,48,0.6);
+  display:flex; align-items:center; justify-content:center; z-index:60; padding:24px;
+}
+.ticket{
+  background:var(--paper); width:100%; max-width:320px; border-radius:4px;
+  position:relative; padding:26px 22px 22px;
+  box-shadow:0 20px 40px rgba(0,0,0,0.3);
+  background-image:
+    linear-gradient(var(--paper), var(--paper)),
+    repeating-linear-gradient(to bottom, transparent 0 6px, var(--paper) 6px 12px);
+}
+.ticket::before, .ticket::after{
+  content:""; position:absolute; width:22px; height:22px; background:var(--bg);
+  border-radius:50%; top:50%; margin-top:-11px;
+}
+.ticket::before{ left:-11px; }
+.ticket::after{ right:-11px; }
+.ticket-eyebrow{
+  font-family:'JetBrains Mono'; font-size:10.5px; letter-spacing:1.5px;
+  color:var(--ink-soft); text-transform:uppercase; text-align:center;
+}
+.ticket h3{
+  font-family:'Space Grotesk'; text-align:center; font-size:19px; margin:6px 0 16px;
+}
+.ticket-points{
+  font-family:'JetBrains Mono'; font-weight:700; font-size:48px; text-align:center;
+  color:var(--vest-dark); line-height:1;
+}
+.ticket-points .plus{ font-size:24px; vertical-align:top; }
+.ticket-points .pending-label{ font-size:22px; letter-spacing:0.5px; }
+.pending-banner{
+  background:var(--paper-soft, #f4efe4); border:1.5px dashed var(--line);
+  border-radius:10px; padding:10px 12px; font-size:12.5px; color:var(--ink-soft);
+  margin-bottom:14px;
+}
+.ticket-sub{ text-align:center; font-size:12px; color:var(--ink-soft); margin-top:4px; }
+.stamp{
+  border:3px solid var(--stamp); color:var(--stamp); font-family:'Space Grotesk'; font-weight:700;
+  text-align:center; padding:8px; border-radius:8px; margin-top:16px; transform:rotate(-3deg);
+  font-size:13px; letter-spacing:1px;
+}
+.ticket-dash{ border-top:1.5px dashed var(--line); margin:18px 0 14px; }
+.ticket-close{
+  width:100%; background:var(--moss); color:#fff; border:none; padding:12px;
+  border-radius:10px; font-family:'Space Grotesk'; font-weight:700; cursor:pointer; font-size:14px;
+}
+.loading-txt{ text-align:center; font-size:12.5px; color:var(--ink-soft); padding:20px 0; }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <div class="header">
+    <div class="brand"><span class="mark">🗑</span> Litter Ledger</div>
+    <div class="points-chip" id="headerPoints">0 pts</div>
+  </div>
+
+  <!-- CAPTURE -->
+  <div class="screen active" id="screen-capture">
+    <h1 class="title">Log a piece of litter</h1>
+    <p class="subtitle">Snap what you found. Extra points if you actually pick it up or recycle it.</p>
+
+    <div class="capture-box" id="captureBox">
+      <label class="file-label" id="fileLabel">
+        <div class="capture-cta">
+          <div class="icon-circle">📷</div>
+          <div>Tap to take a photo</div>
+        </div>
+        <input type="file" accept="image/*" capture="environment" id="fileInput">
+      </label>
+    </div>
+
+    <div class="field-block">
+      <span class="field-label">What did you find?</span>
+      <div class="chip-row" id="categoryRow"></div>
+    </div>
+
+    <div class="field-block">
+      <span class="field-label">Where (optional)</span>
+      <input class="spot-input" id="spotInput" placeholder="e.g. Riverside Park, Main St">
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-copy">
+        <div class="t1">I picked it up / recycled it</div>
+        <div class="t2">+50% bonus points</div>
+      </div>
+      <div class="switch" id="bonusSwitch"><div class="knob"></div></div>
+    </div>
+
+    <button class="submit-btn" id="submitBtn" disabled>Log it</button>
+  </div>
+
+  <!-- FEED -->
+  <div class="screen" id="screen-feed">
+    <h1 class="title">Community feed</h1>
+    <p class="subtitle">What everyone's been finding lately.</p>
+    <div id="feedList"><div class="loading-txt">Loading feed…</div></div>
+  </div>
+
+  <!-- LEADERBOARD -->
+  <div class="screen" id="screen-ranks">
+    <h1 class="title">Leaderboard</h1>
+    <p class="subtitle">Top litter-getters, all time.</p>
+    <div id="rankList"><div class="loading-txt">Loading rankings…</div></div>
+  </div>
+
+  <!-- ME -->
+  <div class="screen" id="screen-me">
+    <h1 class="title" id="meTitle">My stats</h1>
+    <p class="subtitle">Your cleanup record.</p>
+    <div class="pending-banner" id="pendingBanner" style="display:none;"></div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="num" id="meTotalPts">0</div><div class="lab">Total points</div></div>
+      <div class="stat-card"><div class="num" id="meItems">0</div><div class="lab">Items logged</div></div>
+      <div class="stat-card"><div class="num" id="meRemoved">0</div><div class="lab">Actually removed</div></div>
+      <div class="stat-card"><div class="num" id="meRank">—</div><div class="lab">Current rank</div></div>
+    </div>
+    <span class="field-label">Badges</span>
+    <div class="badge-row" id="badgeRow"></div>
+    <div class="reset-link" id="resetLink">Not you? Switch player</div>
+  </div>
+
+  <div class="nav">
+    <button class="nav-btn active" data-screen="capture"><span class="ic">📷</span>Capture</button>
+    <button class="nav-btn" data-screen="feed"><span class="ic">📰</span>Feed</button>
+    <button class="nav-btn" data-screen="ranks"><span class="ic">🏆</span>Ranks</button>
+    <button class="nav-btn" data-screen="me"><span class="ic">🙋</span>Me</button>
+  </div>
+
+  <!-- Onboarding -->
+  <div class="overlay" id="onboardOverlay" style="display:none;">
+    <div class="sheet">
+      <div class="mark-big">🗑</div>
+      <h2>Welcome to Litter Ledger</h2>
+      <p>Pick a call-sign so your finds count toward the leaderboard. You can play under this name on this device.</p>
+      <input class="name-input" id="nameInput" placeholder="Your call-sign" maxlength="20">
+      <button class="submit-btn" id="nameSubmit" style="margin-top:0;">Start playing</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const CATEGORIES = [
+  {id:'butt', label:'Cigarette butt', pts:5},
+  {id:'bottle', label:'Bottle / can', pts:10},
+  {id:'wrapper', label:'Wrapper', pts:8},
+  {id:'bag', label:'Plastic bag/film', pts:8},
+  {id:'glass', label:'Glass', pts:12},
+  {id:'other', label:'Other / bulk item', pts:15},
+];
+
+const BADGES = [
+  {name:'Rookie Ranger', req:0, icon:'🔰'},
+  {name:'Block Cleaner', req:100, icon:'🧹'},
+  {name:'Neighborhood Hero', req:500, icon:'🦸'},
+  {name:'Trash Titan', req:1500, icon:'⚡'},
+  {name:'Legendary Litter-Getter', req:5000, icon:'👑'},
+];
+
+// Same-origin by default (server serves this file from /public).
+// Point this at a different host if you split frontend/backend deployments.
+const API_BASE = '';
+
+let currentUser = null;
+let photoFile = null;       // the actual File object we upload
+let selectedCategory = null;
+let bonusOn = false;
+
+const PROFILE_KEY = 'litterledger_profile';
+
+// ---------- Onboarding / profile (kept local to this device) ----------
+function loadProfile(){
+  try{
+    const raw = localStorage.getItem(PROFILE_KEY);
+    if(raw){
+      const p = JSON.parse(raw);
+      currentUser = p.username;
+      document.getElementById('onboardOverlay').style.display = 'none';
+      afterLogin();
+    } else {
+      document.getElementById('onboardOverlay').style.display = 'flex';
+    }
+  } catch(e){
+    document.getElementById('onboardOverlay').style.display = 'flex';
+  }
+}
+
+function saveProfile(name){
+  currentUser = name;
+  try{
+    localStorage.setItem(PROFILE_KEY, JSON.stringify({username:name}));
+  } catch(e){ console.error('Could not save profile', e); }
+  document.getElementById('onboardOverlay').style.display = 'none';
+  afterLogin();
+}
+
+function afterLogin(){
+  refreshHeaderPoints();
+  loadMe();
+}
+
+document.getElementById('nameSubmit').addEventListener('click', ()=>{
+  const v = document.getElementById('nameInput').value.trim();
+  if(!v) return;
+  saveProfile(v);
+});
+
+document.getElementById('resetLink').addEventListener('click', ()=>{
+  try{ localStorage.removeItem(PROFILE_KEY); }catch(e){}
+  currentUser = null;
+  document.getElementById('nameInput').value = '';
+  document.getElementById('onboardOverlay').style.display = 'flex';
+});
+
+// ---------- Nav ----------
+document.querySelectorAll('.nav-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    btn.classList.add('active');
+    const screen = btn.dataset.screen;
+    document.getElementById('screen-'+screen).classList.add('active');
+    if(screen==='feed') loadFeed();
+    if(screen==='ranks') loadLeaderboard();
+    if(screen==='me') loadMe();
+  });
+});
+
+// ---------- Categories ----------
+const categoryRow = document.getElementById('categoryRow');
+CATEGORIES.forEach(cat=>{
+  const chip = document.createElement('div');
+  chip.className = 'chip';
+  chip.innerHTML = `${cat.label} <span class="pts">+${cat.pts}</span>`;
+  chip.addEventListener('click', ()=>{
+    document.querySelectorAll('#categoryRow .chip').forEach(c=>c.classList.remove('selected'));
+    chip.classList.add('selected');
+    selectedCategory = cat;
+    updateSubmitState();
+  });
+  categoryRow.appendChild(chip);
+});
+
+// ---------- Bonus toggle ----------
+const bonusSwitch = document.getElementById('bonusSwitch');
+bonusSwitch.addEventListener('click', ()=>{
+  bonusOn = !bonusOn;
+  bonusSwitch.classList.toggle('on', bonusOn);
+});
+
+// ---------- Photo capture ----------
+const captureBox = document.getElementById('captureBox');
+document.getElementById('fileInput').addEventListener('change', handleFileChange);
+
+function handleFileChange(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  // Keep the original file — the server resizes/recompresses it before storing.
+  photoFile = file;
+  const previewUrl = URL.createObjectURL(file);
+  captureBox.innerHTML = `<img src="${previewUrl}" alt="captured litter"><button class="retake-btn" id="retakeBtn">Retake</button>`;
+  document.getElementById('retakeBtn').addEventListener('click', (ev)=>{
+    ev.stopPropagation();
+    photoFile = null;
+    resetCaptureBox();
+    updateSubmitState();
+  });
+  updateSubmitState();
+}
+
+function resetCaptureBox(){
+  captureBox.innerHTML = `<label class="file-label" id="fileLabel">
+      <div class="capture-cta">
+        <div class="icon-circle">📷</div>
+        <div>Tap to take a photo</div>
+      </div>
+      <input type="file" accept="image/*" capture="environment" id="fileInput">
+    </label>`;
+  document.getElementById('fileInput').addEventListener('change', handleFileChange);
+}
+
+function updateSubmitState(){
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = !(photoFile && selectedCategory);
+}
+
+// ---------- Submit entry ----------
+document.getElementById('submitBtn').addEventListener('click', submitEntry);
+
+async function submitEntry(){
+  if(!currentUser || !photoFile || !selectedCategory) return;
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Logging…';
+
+  const spot = document.getElementById('spotInput').value.trim();
+
+  const fd = new FormData();
+  fd.append('username', currentUser);
+  fd.append('categoryId', selectedCategory.id);
+  fd.append('removed', bonusOn ? 'true' : 'false');
+  fd.append('spot', spot);
+  fd.append('photo', photoFile);
+
+  try{
+    const res = await fetch(API_BASE + '/api/entries', { method: 'POST', body: fd });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || 'upload failed');
+    }
+    const entry = await res.json();
+
+    showTicket(entry);
+    refreshHeaderPoints();
+
+    // reset form
+    photoFile = null;
+    selectedCategory = null;
+    bonusOn = false;
+    bonusSwitch.classList.remove('on');
+    document.getElementById('spotInput').value = '';
+    document.querySelectorAll('#categoryRow .chip').forEach(c=>c.classList.remove('selected'));
+    resetCaptureBox();
+  } catch(e){
+    console.error(e);
+    alert("Couldn't save your find — check your connection and try again.");
+  } finally {
+    btn.textContent = 'Log it';
+    updateSubmitState();
+  }
+}
+
+function showTicket(entry){
+  const wrap = document.createElement('div');
+  wrap.className = 'ticket-wrap';
+  wrap.innerHTML = `
+    <div class="ticket">
+      <div class="ticket-eyebrow">Field Citation</div>
+      <h3>${entry.category || 'Litter find'}</h3>
+      <div class="ticket-points"><span class="pending-label">Pending review</span></div>
+      <div class="ticket-sub">submitted by ${entry.username} — a reviewer will assign points</div>
+      ${entry.claimedRemoved ? `<div class="stamp">✓ MARKED REMOVED / RECYCLED</div>` : ``}
+      <div class="ticket-dash"></div>
+      <button class="ticket-close" id="ticketClose">Nice</button>
+    </div>`;
+  document.getElementById('app').appendChild(wrap);
+  document.getElementById('ticketClose').addEventListener('click', ()=> wrap.remove());
+}
+
+// ---------- Header points ----------
+async function refreshHeaderPoints(){
+  if(!currentUser) return;
+  try{
+    const res = await fetch(API_BASE + '/api/users/' + encodeURIComponent(currentUser));
+    const rec = await res.json();
+    document.getElementById('headerPoints').textContent = (rec.totalPoints||0) + ' pts';
+  } catch(e){
+    document.getElementById('headerPoints').textContent = '0 pts';
+  }
+}
+
+// ---------- Feed ----------
+async function loadFeed(){
+  const list = document.getElementById('feedList');
+  list.innerHTML = '<div class="loading-txt">Loading feed…</div>';
+  try{
+    const res = await fetch(API_BASE + '/api/entries?limit=25');
+    const entries = await res.json();
+    if(entries.length === 0){
+      list.innerHTML = '<div class="loading-txt">No finds logged yet — be the first!</div>';
+      return;
+    }
+    list.innerHTML = '';
+    entries.forEach(e=>{
+      const row = document.createElement('div');
+      row.className = 'feed-item';
+      row.innerHTML = `
+        <img src="${API_BASE + e.photoUrl}" alt="${e.category}" loading="lazy">
+        <div class="feed-meta">
+          <div class="who">${e.username}</div>
+          <div class="what">${e.category}${e.spot ? ' · ' : ''}${e.spot ? '<span class="spot">'+e.spot+'</span>' : ''}</div>
+        </div>
+        <div class="feed-pts">+${e.points}${e.claimedRemoved ? '<span class="bonus-tag">REMOVED</span>' : ''}</div>
+      `;
+      list.appendChild(row);
+    });
+  } catch(e){
+    console.error(e);
+    list.innerHTML = '<div class="loading-txt">Could not load the feed. Try again in a moment.</div>';
+  }
+}
+
+// ---------- Leaderboard ----------
+async function loadLeaderboard(){
+  const list = document.getElementById('rankList');
+  list.innerHTML = '<div class="loading-txt">Loading rankings…</div>';
+  try{
+    const res = await fetch(API_BASE + '/api/leaderboard');
+    const users = await res.json(); // already sorted desc by the server
+    if(users.length === 0){
+      list.innerHTML = '<div class="loading-txt">No players yet — log a find to top the board.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    users.forEach((u,i)=>{
+      const row = document.createElement('div');
+      row.className = 'rank-row' + (u.username === currentUser ? ' me' : '');
+      row.innerHTML = `
+        <div class="rank-num">${i+1}</div>
+        <div>
+          <div class="rank-name">${u.username}${u.username===currentUser ? ' (you)' : ''}</div>
+          <div class="rank-sub">${u.itemsLogged} logged · ${u.itemsRemoved} removed</div>
+        </div>
+        <div class="rank-pts" style="margin-left:auto;">${u.totalPoints}</div>
+      `;
+      list.appendChild(row);
+    });
+  } catch(e){
+    console.error(e);
+    list.innerHTML = '<div class="loading-txt">Could not load rankings. Try again in a moment.</div>';
+  }
+}
+
+// ---------- Me ----------
+async function loadMe(){
+  if(!currentUser) return;
+  document.getElementById('meTitle').textContent = currentUser + "'s stats";
+  let rec = {totalPoints:0, itemsLogged:0, itemsRemoved:0, rank:null, pendingCount:0};
+  try{
+    const res = await fetch(API_BASE + '/api/users/' + encodeURIComponent(currentUser));
+    rec = await res.json();
+  } catch(e){
+    console.error(e);
+  }
+  document.getElementById('meTotalPts').textContent = rec.totalPoints;
+  document.getElementById('meItems').textContent = rec.itemsLogged;
+  document.getElementById('meRemoved').textContent = rec.itemsRemoved;
+  document.getElementById('meRank').textContent = rec.rank ? ('#'+rec.rank) : '—';
+
+  const banner = document.getElementById('pendingBanner');
+  if(rec.pendingCount > 0){
+    banner.style.display = 'block';
+    banner.textContent = rec.pendingCount === 1
+      ? '1 find awaiting review — points aren\'t counted yet.'
+      : rec.pendingCount + ' finds awaiting review — points aren\'t counted yet.';
+  } else {
+    banner.style.display = 'none';
+  }
+
+  const badgeRow = document.getElementById('badgeRow');
+  badgeRow.innerHTML = '';
+  BADGES.forEach(b=>{
+    const unlocked = rec.totalPoints >= b.req;
+    const el = document.createElement('div');
+    el.className = 'badge' + (unlocked ? '' : ' locked');
+    el.innerHTML = `<div class="b-icon">${b.icon}</div>
+      <div><div class="b-name">${b.name}</div><div class="b-req">${b.req} pts</div></div>`;
+    badgeRow.appendChild(el);
+  });
+}
+
+// ---------- init ----------
+loadProfile();
+</script>
+</body>
+</html>

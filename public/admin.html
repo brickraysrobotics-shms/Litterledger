@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Litter Ledger — Review Queue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #EDEAE3;
+    --paper: #F7F5F0;
+    --ink: #1B2430;
+    --ink-soft: #5B5F63;
+    --moss: #2C4A3E;
+    --moss-dark: #1F3831;
+    --vest: #FF6B1A;
+    --vest-dark: #E0570D;
+    --line: #CFC8B8;
+    --stamp: #C1432E;
+    --ok: #3E7A52;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; font-family:'Space Grotesk', sans-serif; background:var(--bg); color:var(--ink);
+    min-height:100vh;
+  }
+  .wrap{ max-width:760px; margin:0 auto; padding:24px 16px 60px; }
+  h1{ font-size:22px; margin:0 0 4px; }
+  .subtitle{ color:var(--ink-soft); font-size:13.5px; margin:0 0 24px; }
+
+  /* Login gate */
+  #loginScreen{
+    max-width:360px; margin:80px auto 0; background:var(--paper); border:1px solid var(--line);
+    border-radius:14px; padding:28px 24px; text-align:center;
+  }
+  #loginScreen h1{ margin-bottom:6px; }
+  #loginScreen input{
+    width:100%; padding:11px 12px; border-radius:8px; border:1.5px solid var(--line);
+    font-family:'JetBrains Mono'; font-size:14px; margin:16px 0 10px; background:#fff;
+  }
+  #loginScreen button{
+    width:100%; background:var(--moss); color:#fff; border:none; padding:11px;
+    border-radius:8px; font-family:'Space Grotesk'; font-weight:700; cursor:pointer; font-size:14px;
+  }
+  #loginError{ color:var(--stamp); font-size:12.5px; min-height:16px; margin-top:8px; }
+
+  /* Queue */
+  .card{
+    background:var(--paper); border:1px solid var(--line); border-radius:14px;
+    padding:16px; margin-bottom:16px; display:flex; gap:14px;
+  }
+  .card img{
+    width:120px; height:120px; object-fit:cover; border-radius:10px; flex-shrink:0;
+    background:#ddd;
+  }
+  .card-body{ flex:1; min-width:0; }
+  .card-who{ font-weight:700; font-size:14.5px; }
+  .card-meta{ font-size:12.5px; color:var(--ink-soft); margin:2px 0 10px; }
+  .card-meta .tag{
+    display:inline-block; background:var(--bg); border:1px solid var(--line); border-radius:6px;
+    padding:1px 6px; margin-right:6px; font-family:'JetBrains Mono'; font-size:11px;
+  }
+  .review-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .review-row input[type="number"]{
+    width:80px; padding:8px 10px; border-radius:8px; border:1.5px solid var(--line);
+    font-family:'JetBrains Mono'; font-size:14px;
+  }
+  .btn{
+    border:none; padding:9px 14px; border-radius:8px; font-family:'Space Grotesk'; font-weight:700;
+    font-size:13px; cursor:pointer;
+  }
+  .btn-approve{ background:var(--ok); color:#fff; }
+  .btn-reject{ background:var(--stamp); color:#fff; }
+  .btn:disabled{ opacity:0.5; cursor:default; }
+  .empty-state{ color:var(--ink-soft); font-size:14px; text-align:center; padding:40px 0; }
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--moss-dark);
+    color:#fff; padding:10px 18px; border-radius:10px; font-size:13px; opacity:0; transition:opacity .2s;
+    pointer-events:none;
+  }
+  .toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <h1>Review Queue</h1>
+  <p class="subtitle">Enter the admin password to continue.</p>
+  <input type="password" id="passwordInput" placeholder="Admin password" autocomplete="current-password">
+  <button id="loginBtn">Unlock</button>
+  <div id="loginError"></div>
+</div>
+
+<div class="wrap" id="queueScreen" style="display:none;">
+  <h1>Review Queue</h1>
+  <p class="subtitle">Pending submissions — assign points to approve, or reject.</p>
+  <div id="queueList"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const ADMIN_KEY_STORAGE = 'litterledger_admin_key';
+let adminKey = sessionStorage.getItem(ADMIN_KEY_STORAGE) || null;
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=> t.classList.remove('show'), 1800);
+}
+
+async function tryLogin(password){
+  const res = await fetch('/api/admin/login', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({password})
+  });
+  if(res.ok){
+    adminKey = password;
+    sessionStorage.setItem(ADMIN_KEY_STORAGE, password);
+    return true;
+  }
+  return false;
+}
+
+document.getElementById('loginBtn').addEventListener('click', async ()=>{
+  const pw = document.getElementById('passwordInput').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  const ok = await tryLogin(pw);
+  if(ok){
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('queueScreen').style.display = 'block';
+    loadQueue();
+  } else {
+    errEl.textContent = 'Wrong password — try again.';
+  }
+});
+
+document.getElementById('passwordInput').addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter') document.getElementById('loginBtn').click();
+});
+
+async function loadQueue(){
+  const list = document.getElementById('queueList');
+  list.innerHTML = '<div class="empty-state">Loading…</div>';
+  try{
+    const res = await fetch('/api/admin/pending', { headers: {'x-admin-key': adminKey} });
+    if(res.status === 401){
+      sessionStorage.removeItem(ADMIN_KEY_STORAGE);
+      adminKey = null;
+      document.getElementById('queueScreen').style.display = 'none';
+      document.getElementById('loginScreen').style.display = 'block';
+      document.getElementById('loginError').textContent = 'Session expired — log in again.';
+      return;
+    }
+    const items = await res.json();
+    if(items.length === 0){
+      list.innerHTML = '<div class="empty-state">Nothing pending — queue is clear. 🎉</div>';
+      return;
+    }
+    list.innerHTML = '';
+    items.forEach(item => list.appendChild(renderCard(item)));
+  } catch(e){
+    console.error(e);
+    list.innerHTML = '<div class="empty-state">Could not load the queue. Try again in a moment.</div>';
+  }
+}
+
+function renderCard(item){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <img src="${item.photoUrl}" alt="submission from ${item.username}">
+    <div class="card-body">
+      <div class="card-who">${item.username}</div>
+      <div class="card-meta">
+        ${item.category ? `<span class="tag">${item.category}</span>` : ''}
+        ${item.claimedRemoved ? `<span class="tag">claims removed</span>` : ''}
+        ${item.spot ? `<span class="tag">${item.spot}</span>` : ''}
+      </div>
+      <div class="review-row">
+        <input type="number" min="0" step="1" placeholder="pts" class="pts-input">
+        <button class="btn btn-approve">Approve</button>
+        <button class="btn btn-reject">Reject</button>
+      </div>
+    </div>
+  `;
+
+  const ptsInput = card.querySelector('.pts-input');
+  const approveBtn = card.querySelector('.btn-approve');
+  const rejectBtn = card.querySelector('.btn-reject');
+
+  approveBtn.addEventListener('click', async ()=>{
+    const pts = parseInt(ptsInput.value, 10);
+    if(!Number.isFinite(pts) || pts < 0){
+      ptsInput.focus();
+      showToast('Enter a points value first');
+      return;
+    }
+    await review(item.id, 'approved', pts, card);
+  });
+
+  rejectBtn.addEventListener('click', async ()=>{
+    await review(item.id, 'rejected', null, card);
+  });
+
+  return card;
+}
+
+async function review(id, decision, points, card){
+  const buttons = card.querySelectorAll('button');
+  buttons.forEach(b=> b.disabled = true);
+  try{
+    const res = await fetch(`/api/admin/entries/${id}/review`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json', 'x-admin-key': adminKey},
+      body: JSON.stringify({decision, points})
+    });
+    if(!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error(err.error || 'review failed');
+    }
+    card.remove();
+    showToast(decision === 'approved' ? `Approved +${points} pts` : 'Rejected');
+    const list = document.getElementById('queueList');
+    if(!list.children.length){
+      list.innerHTML = '<div class="empty-state">Nothing pending — queue is clear. 🎉</div>';
+    }
+  } catch(e){
+    console.error(e);
+    showToast("Couldn't save — try again");
+    buttons.forEach(b=> b.disabled = false);
+  }
+}
+
+// ---------- init ----------
+(async function init(){
+  if(adminKey){
+    // Verify the stored key still works before showing the queue.
+    const ok = await tryLogin(adminKey);
+    if(ok){
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('queueScreen').style.display = 'block';
+      loadQueue();
+      return;
+    }
+  }
+  document.getElementById('loginScreen').style.display = 'block';
+})();
+</script>
+</body>
+</html>
