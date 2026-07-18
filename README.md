@@ -56,14 +56,44 @@ ADMIN_PASSWORD=yourpassword npm start
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/categories` | Suggested categories (label only, no points) |
-| POST | `/api/entries` | Submit a find (`multipart/form-data`: `username`, `categoryId`, `removed`, `spot`, `photo`) → status `pending` |
+| POST | `/api/entries` | Submit a find (`multipart/form-data`: `username`, `categoryId`, `removed`, `spot`, `lat`, `lng`, `photo`) → status `pending` |
 | GET | `/api/entries?limit=25` | Public feed — **approved entries only** |
+| GET | `/api/entries/map` | All approved entries that have coordinates — used to plot the pollution map |
 | GET | `/api/photos/:id` | Raw photo bytes |
 | GET | `/api/leaderboard` | Users sorted by points — reflects approved entries only |
 | GET | `/api/users/:username` | One user's totals, rank, and count of their still-pending submissions |
 | POST | `/api/admin/login` | Check a password (used by the admin page) |
-| GET | `/api/admin/pending` | *(requires `x-admin-key` header)* Queue of pending entries with photos |
+| GET | `/api/admin/pending` | *(requires `x-admin-key` header)* Queue of pending entries with photos and coordinates |
 | POST | `/api/admin/entries/:id/review` | *(requires `x-admin-key` header)* Body: `{decision: "approved"|"rejected", points, note}` |
+
+## Setting up the Google Maps API key (for the location picker & pollution map)
+
+Both `public/index.html` (the map/pin picker reporters use) and
+`public/admin.html` (the pollution hotspot map) load Google Maps using a key
+you configure in `public/config.js`. Without a key, both still work — the
+map areas just show a "map unavailable" message and submissions go through
+without coordinates.
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/) and
+   create a project (or use an existing one)
+2. Enable billing on the project — Google requires a billing-enabled account
+   to issue Maps keys, but there's a generous free monthly credit, and an
+   app this size is very unlikely to exceed it
+3. Go to **APIs & Services → Library**, search for **"Maps JavaScript API"**,
+   click **Enable**
+4. Go to **APIs & Services → Credentials → Create Credentials → API key**
+5. **Restrict the key** (click into it after creating): under "Application
+   restrictions" limit it to your domains (e.g. `yourdomain.com/*`,
+   `localhost/*` for testing); under "API restrictions" limit it to just
+   "Maps JavaScript API". This stops anyone who finds the key in your
+   frontend code from using it for other Google services on your bill.
+6. Paste the key into `public/config.js`:
+   ```js
+   window.GOOGLE_MAPS_API_KEY = 'your-actual-key-here';
+   ```
+
+The native app project (`litter-ledger-app`) has its own `www/config.js`
+with the same variable — update both if you're running both.
 
 ## Notes / things you may want to change next
 
