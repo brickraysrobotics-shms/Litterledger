@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#2C4A3E"/>
+  <!-- map pin -->
+  <path d="M256 96c-70 0-124 54-124 122 0 92 124 224 124 224s124-132 124-224c0-68-54-122-124-122z"
+        fill="#FF6B1A"/>
+  <circle cx="256" cy="218" r="54" fill="#F7F5F0"/>
+  <!-- small leaf accent inside the pin -->
+  <path d="M234 224c0-28 22-46 46-46 0 28-22 46-46 46z" fill="#3E7A52"/>
+</svg>

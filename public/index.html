@@ -162,8 +162,36 @@ label.file-label{ cursor:pointer; width:100%; height:100%; display:block; }
   font-family:'Inter';
   font-size:14px;
   background:#fff;
+  margin-top:10px;
 }
 .spot-input:focus{ outline:2px solid var(--vest); outline-offset:1px; }
+
+.map-picker{
+  border:1.5px solid var(--line);
+  border-radius:12px;
+  overflow:hidden;
+  background:#fff;
+}
+.picker-map{
+  width:100%;
+  height:180px;
+  background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%23EDEAE3'/%3E%3C/svg%3E");
+  display:flex; align-items:center; justify-content:center;
+  color:var(--ink-soft); font-size:12.5px; text-align:center; padding:12px;
+}
+.locate-btn{
+  width:100%;
+  border:none; border-top:1.5px solid var(--line);
+  background:#fff; color:var(--moss);
+  font-family:'Inter'; font-weight:600; font-size:13.5px;
+  padding:11px; cursor:pointer;
+}
+.locate-btn:active{ background:var(--bg); }
+.locate-btn:disabled{ color:var(--ink-soft); cursor:default; }
+.map-hint{
+  font-size:11px; color:var(--ink-soft); text-align:center;
+  padding:6px 10px 10px;
+}
 
 .toggle-row{
   display:flex; align-items:center; justify-content:space-between;
@@ -343,6 +371,7 @@ label.file-label{ cursor:pointer; width:100%; height:100%; display:block; }
 }
 .loading-txt{ text-align:center; font-size:12.5px; color:var(--ink-soft); padding:20px 0; }
 </style>
+<script src="config.js"></script>
 </head>
 <body>
 <div class="app" id="app">
@@ -373,8 +402,13 @@ label.file-label{ cursor:pointer; width:100%; height:100%; display:block; }
     </div>
 
     <div class="field-block">
-      <span class="field-label">Where (optional)</span>
-      <input class="spot-input" id="spotInput" placeholder="e.g. Riverside Park, Main St">
+      <span class="field-label">Where did you find it?</span>
+      <div class="map-picker">
+        <div id="pickerMap" class="picker-map"></div>
+        <button type="button" class="locate-btn" id="locateBtn">📍 Use current location</button>
+        <div class="map-hint">Tap the map or drag the pin to fine-tune.</div>
+      </div>
+      <input class="spot-input" id="spotInput" placeholder="Add a note (optional) — e.g. 'under the bridge'">
     </div>
 
     <div class="toggle-row">
@@ -458,12 +492,14 @@ const BADGES = [
 
 // Same-origin by default (server serves this file from /public).
 // Point this at a different host if you split frontend/backend deployments.
-const API_BASE = '';
+const API_BASE = window.LITTER_LEDGER_API_BASE || '';
 
 let currentUser = null;
 let photoFile = null;       // the actual File object we upload
 let selectedCategory = null;
 let bonusOn = false;
+let selectedLat = null;
+let selectedLng = null;
 
 const PROFILE_KEY = 'litterledger_profile';
 
@@ -599,6 +635,10 @@ async function submitEntry(){
   fd.append('categoryId', selectedCategory.id);
   fd.append('removed', bonusOn ? 'true' : 'false');
   fd.append('spot', spot);
+  if (selectedLat != null && selectedLng != null) {
+    fd.append('lat', selectedLat);
+    fd.append('lng', selectedLng);
+  }
   fd.append('photo', photoFile);
 
   try{
@@ -758,8 +798,107 @@ async function loadMe(){
   });
 }
 
+// ---------- Location picker (Google Maps) ----------
+let pickerMap = null;
+let pickerMarker = null;
+let mapsLoadPromise = null;
+
+const DEFAULT_MAP_CENTER = { lat: 39.8283, lng: -98.5795 }; // center of the US — just a fallback
+
+function loadGoogleMaps(){
+  if (mapsLoadPromise) return mapsLoadPromise;
+  mapsLoadPromise = new Promise((resolve, reject) => {
+    const key = window.GOOGLE_MAPS_API_KEY;
+    if (!key || key.indexOf('YOUR-GOOGLE-MAPS') === 0) {
+      reject(new Error('missing-key'));
+      return;
+    }
+    window.__onGoogleMapsLoaded = () => resolve(window.google);
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&callback=__onGoogleMapsLoaded`;
+    script.async = true;
+    script.onerror = () => reject(new Error('load-failed'));
+    document.head.appendChild(script);
+  });
+  return mapsLoadPromise;
+}
+
+function setPickerLocation(lat, lng){
+  selectedLat = lat;
+  selectedLng = lng;
+  if (pickerMap && pickerMarker) {
+    pickerMarker.setPosition({ lat, lng });
+    pickerMap.panTo({ lat, lng });
+  }
+}
+
+async function initLocationPicker(){
+  const mapEl = document.getElementById('pickerMap');
+  try{
+    const google = await loadGoogleMaps();
+    const center = selectedLat != null ? { lat: selectedLat, lng: selectedLng } : DEFAULT_MAP_CENTER;
+
+    pickerMap = new google.maps.Map(mapEl, {
+      center,
+      zoom: selectedLat != null ? 16 : 4,
+      disableDefaultUI: true,
+      zoomControl: true,
+      gestureHandling: 'greedy',
+    });
+
+    pickerMarker = new google.maps.Marker({
+      position: center,
+      map: pickerMap,
+      draggable: true,
+    });
+
+    pickerMarker.addListener('dragend', () => {
+      const pos = pickerMarker.getPosition();
+      selectedLat = pos.lat();
+      selectedLng = pos.lng();
+    });
+
+    pickerMap.addListener('click', (e) => {
+      setPickerLocation(e.latLng.lat(), e.latLng.lng());
+    });
+
+    // Try to center on the user automatically as a starting point.
+    tryUseCurrentLocation(true);
+  } catch(e){
+    mapEl.innerHTML = e.message === 'missing-key'
+      ? 'Map unavailable — no Google Maps API key configured yet. You can still submit without a pinned location.'
+      : 'Could not load the map right now. You can still submit without a pinned location.';
+  }
+}
+
+function tryUseCurrentLocation(silent){
+  if (!navigator.geolocation) {
+    if (!silent) alert("This device/browser doesn't support location.");
+    return;
+  }
+  const btn = document.getElementById('locateBtn');
+  if (!silent && btn) { btn.disabled = true; btn.textContent = 'Locating…'; }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      setPickerLocation(pos.coords.latitude, pos.coords.longitude);
+      if (pickerMap) pickerMap.setZoom(16);
+      if (!silent && btn) { btn.disabled = false; btn.textContent = '📍 Use current location'; }
+    },
+    () => {
+      if (!silent && btn) { btn.disabled = false; btn.textContent = '📍 Use current location'; }
+      if (!silent) alert("Couldn't get your location — check location permissions for this app.");
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+document.getElementById('locateBtn').addEventListener('click', () => tryUseCurrentLocation(false));
+
 // ---------- init ----------
 loadProfile();
+initLocationPicker();
+
 </script>
 </body>
 </html>

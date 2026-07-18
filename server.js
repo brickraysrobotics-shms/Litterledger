@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS entries (
   suggested_category_label TEXT,
   claimed_removed INTEGER NOT NULL DEFAULT 0,
   spot TEXT,
+  lat REAL,
+  lng REAL,
   photo BLOB NOT NULL,
   photo_mime TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected
@@ -96,6 +98,10 @@ app.post('/api/entries', upload.single('photo'), async (req, res) => {
     const categoryId = req.body.categoryId || null;
     const claimedRemoved = req.body.removed === 'true' || req.body.removed === true;
     const spot = (req.body.spot || '').toString().slice(0, 200);
+    const lat = req.body.lat !== undefined && req.body.lat !== '' ? parseFloat(req.body.lat) : null;
+    const lng = req.body.lng !== undefined && req.body.lng !== '' ? parseFloat(req.body.lng) : null;
+    const validLat = Number.isFinite(lat) && lat >= -90 && lat <= 90 ? lat : null;
+    const validLng = Number.isFinite(lng) && lng >= -180 && lng <= 180 ? lng : null;
 
     if (!username) return res.status(400).json({ error: 'username is required' });
 
@@ -118,8 +124,8 @@ app.post('/api/entries', upload.single('photo'), async (req, res) => {
 
     db.prepare(
       `INSERT INTO entries
-        (id, username, suggested_category_id, suggested_category_label, claimed_removed, spot, photo, photo_mime, status, created_at)
-       VALUES (?,?,?,?,?,?,?,?,'pending',?)`
+        (id, username, suggested_category_id, suggested_category_label, claimed_removed, spot, lat, lng, photo, photo_mime, status, created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,'pending',?)`
     ).run(
       id,
       username,
@@ -127,6 +133,8 @@ app.post('/api/entries', upload.single('photo'), async (req, res) => {
       cat ? cat.label : null,
       claimedRemoved ? 1 : 0,
       spot,
+      validLat,
+      validLng,
       resized,
       'image/jpeg',
       createdAt
@@ -139,6 +147,8 @@ app.post('/api/entries', upload.single('photo'), async (req, res) => {
       category: cat ? cat.label : null,
       claimedRemoved,
       spot,
+      lat: validLat,
+      lng: validLng,
       status: 'pending',
       photoUrl: `/api/photos/${id}`,
       ts: createdAt,
@@ -154,7 +164,7 @@ app.get('/api/entries', (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 25, 100);
   const rows = db
     .prepare(
-      `SELECT id, username, suggested_category_label, claimed_removed, spot, points, created_at
+      `SELECT id, username, suggested_category_label, claimed_removed, spot, lat, lng, points, created_at
        FROM entries WHERE status = 'approved' ORDER BY created_at DESC LIMIT ?`
     )
     .all(limit);
@@ -166,6 +176,34 @@ app.get('/api/entries', (req, res) => {
       category: r.suggested_category_label,
       claimedRemoved: !!r.claimed_removed,
       spot: r.spot,
+      lat: r.lat,
+      lng: r.lng,
+      points: r.points,
+      ts: r.created_at,
+      photoUrl: `/api/photos/${r.id}`,
+    }))
+  );
+});
+
+// All approved entries with coordinates, for plotting a pollution map.
+// No pagination yet — fine at small-to-medium scale (see README notes).
+app.get('/api/entries/map', (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT id, username, suggested_category_label, spot, lat, lng, points, created_at
+       FROM entries WHERE status = 'approved' AND lat IS NOT NULL AND lng IS NOT NULL
+       ORDER BY created_at DESC LIMIT 2000`
+    )
+    .all();
+
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      username: r.username,
+      category: r.suggested_category_label,
+      spot: r.spot,
+      lat: r.lat,
+      lng: r.lng,
       points: r.points,
       ts: r.created_at,
       photoUrl: `/api/photos/${r.id}`,
@@ -246,7 +284,7 @@ app.post('/api/admin/login', (req, res) => {
 app.get('/api/admin/pending', requireAdmin, (req, res) => {
   const rows = db
     .prepare(
-      `SELECT id, username, suggested_category_label, claimed_removed, spot, created_at
+      `SELECT id, username, suggested_category_label, claimed_removed, spot, lat, lng, created_at
        FROM entries WHERE status = 'pending' ORDER BY created_at ASC`
     )
     .all();
@@ -257,6 +295,8 @@ app.get('/api/admin/pending', requireAdmin, (req, res) => {
       category: r.suggested_category_label,
       claimedRemoved: !!r.claimed_removed,
       spot: r.spot,
+      lat: r.lat,
+      lng: r.lng,
       ts: r.created_at,
       photoUrl: `/api/photos/${r.id}`,
     }))

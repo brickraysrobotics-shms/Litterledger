@@ -80,7 +80,26 @@
     pointer-events:none;
   }
   .toast.show{ opacity:1; }
+
+  .tab-row{ display:flex; gap:8px; margin-bottom:20px; }
+  .tab-btn{
+    border:1.5px solid var(--line); background:var(--paper); color:var(--ink-soft);
+    padding:8px 16px; border-radius:20px; font-family:'Space Grotesk'; font-weight:700;
+    font-size:13px; cursor:pointer;
+  }
+  .tab-btn.active{ background:var(--moss); color:#fff; border-color:var(--moss); }
+
+  #adminMap{
+    width:100%; height:min(70vh, 560px); border-radius:14px; border:1px solid var(--line);
+    background:var(--paper);
+  }
+  .map-info{ max-width:200px; font-family:'Space Grotesk', sans-serif; }
+  .map-info img{ width:100%; height:110px; object-fit:cover; border-radius:8px; margin-bottom:6px; }
+  .map-info .who{ font-weight:700; font-size:13.5px; }
+  .map-info .meta{ font-size:12px; color:var(--ink-soft); }
+  .map-info .pts{ font-family:'JetBrains Mono'; color:var(--ok); font-weight:700; }
 </style>
+<script src="config.js"></script>
 </head>
 <body>
 
@@ -95,7 +114,19 @@
 <div class="wrap" id="queueScreen" style="display:none;">
   <h1>Review Queue</h1>
   <p class="subtitle">Pending submissions — assign points to approve, or reject.</p>
-  <div id="queueList"></div>
+
+  <div class="tab-row">
+    <button class="tab-btn active" id="tabQueueBtn">Queue</button>
+    <button class="tab-btn" id="tabMapBtn">Map</button>
+  </div>
+
+  <div id="queuePanel">
+    <div id="queueList"></div>
+  </div>
+
+  <div id="mapPanel" style="display:none;">
+    <div id="adminMap"></div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -235,6 +266,91 @@ async function review(id, decision, points, card){
     buttons.forEach(b=> b.disabled = false);
   }
 }
+
+// ---------- Map view ----------
+let adminMap = null;
+let adminMapMarkers = [];
+let adminMapLoaded = false;
+let mapsLoadPromise = null;
+
+function loadGoogleMaps(){
+  if (mapsLoadPromise) return mapsLoadPromise;
+  mapsLoadPromise = new Promise((resolve, reject) => {
+    const key = window.GOOGLE_MAPS_API_KEY;
+    if (!key || key.indexOf('YOUR-GOOGLE-MAPS') === 0) {
+      reject(new Error('missing-key'));
+      return;
+    }
+    window.__onGoogleMapsLoadedAdmin = () => resolve(window.google);
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&callback=__onGoogleMapsLoadedAdmin`;
+    script.async = true;
+    script.onerror = () => reject(new Error('load-failed'));
+    document.head.appendChild(script);
+  });
+  return mapsLoadPromise;
+}
+
+async function loadMapView(){
+  if (adminMapLoaded) return; // load once per session; re-open tab to see fresh data
+  const mapEl = document.getElementById('adminMap');
+  try{
+    const google = await loadGoogleMaps();
+    const res = await fetch('/api/entries/map', { headers: {'x-admin-key': adminKey} });
+    const points = await res.json();
+
+    adminMap = new google.maps.Map(mapEl, {
+      center: points.length ? { lat: points[0].lat, lng: points[0].lng } : { lat: 39.8283, lng: -98.5795 },
+      zoom: points.length ? 12 : 4,
+    });
+
+    const bounds = new google.maps.LatLngBounds();
+    const infoWindow = new google.maps.InfoWindow();
+
+    points.forEach(p => {
+      const marker = new google.maps.Marker({
+        position: { lat: p.lat, lng: p.lng },
+        map: adminMap,
+        title: `${p.username} — ${p.category || 'litter'}`,
+      });
+      marker.addListener('click', () => {
+        infoWindow.setContent(`
+          <div class="map-info">
+            <img src="${p.photoUrl}" alt="${p.category || 'find'}">
+            <div class="who">${p.username}</div>
+            <div class="meta">${p.category || ''}${p.spot ? ' · ' + p.spot : ''}</div>
+            <div class="pts">+${p.points} pts</div>
+          </div>
+        `);
+        infoWindow.open(adminMap, marker);
+      });
+      adminMapMarkers.push(marker);
+      bounds.extend(marker.getPosition());
+    });
+
+    if (points.length > 1) adminMap.fitBounds(bounds);
+    adminMapLoaded = true;
+  } catch(e){
+    mapEl.innerHTML = e.message === 'missing-key'
+      ? '<div class="empty-state">Map unavailable — no Google Maps API key configured yet.</div>'
+      : '<div class="empty-state">Could not load the map right now.</div>';
+  }
+}
+
+document.getElementById('tabQueueBtn').addEventListener('click', () => {
+  document.getElementById('tabQueueBtn').classList.add('active');
+  document.getElementById('tabMapBtn').classList.remove('active');
+  document.getElementById('queuePanel').style.display = 'block';
+  document.getElementById('mapPanel').style.display = 'none';
+});
+
+document.getElementById('tabMapBtn').addEventListener('click', () => {
+  document.getElementById('tabMapBtn').classList.add('active');
+  document.getElementById('tabQueueBtn').classList.remove('active');
+  document.getElementById('queuePanel').style.display = 'none';
+  document.getElementById('mapPanel').style.display = 'block';
+  loadMapView();
+});
 
 // ---------- init ----------
 (async function init(){
